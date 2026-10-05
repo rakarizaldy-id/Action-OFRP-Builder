@@ -213,7 +213,7 @@ git -C "$MANIFEST_ROOT" \
 (
   cd "$TOP"
   repo init -u "file://$MANIFEST_ROOT" -b main -m default.xml
-  repo sync
+  repo sync -c --no-clone-bundle --no-tags --optimized-fetch --prune --force-sync
 )
 
 clone_special_projects
