@@ -59,7 +59,7 @@ root = ET.parse(sys.argv[1]).getroot()
 rows = []
 seen = set()
 for p in root.findall("project"):
-    path = p.get("path")
+    path = p.get("path") or p.get("name")
     rev = p.get("revision")
     if not path or not rev or len(rev) != 40:
         raise SystemExit(f"invalid project lock: {path!r} {rev!r}")
