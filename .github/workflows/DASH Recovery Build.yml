@@ -38,7 +38,7 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           repository: rakarizaldy-id/android_device_xiaomi_dash-recovery-source-14.1
-          ref: c5da1ccb5ea11c8fe7e45ebc9a760fd8344502ee
+          ref: 033bbb3bcfbb4fba704bcc02852552e9d7e834ae
           path: .dash-controller
           ssh-key: ${{ secrets.DASH_TREE_SSH_KEY }}
           persist-credentials: false
@@ -78,7 +78,7 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           repository: rakarizaldy-id/android_device_xiaomi_dash-recovery-source-14.1
-          ref: c5da1ccb5ea11c8fe7e45ebc9a760fd8344502ee
+          ref: 033bbb3bcfbb4fba704bcc02852552e9d7e834ae
           path: fox_14.1/device/xiaomi/dash
           ssh-key: ${{ secrets.DASH_TREE_SSH_KEY }}
           persist-credentials: false
