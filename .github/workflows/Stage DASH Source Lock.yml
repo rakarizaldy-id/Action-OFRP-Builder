@@ -1,45 +1,4 @@
-name: Stage DASH Source Lock
-
-on:
-  push:
-    paths:
-      - ".github/workflows/Stage DASH Source Lock.yml"
-
-permissions:
-  contents: write
-  actions: read
-
-jobs:
-  stage:
-    runs-on: ubuntu-24.04
-    steps:
-      - name: Checkout
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
-
-      - name: Download audited source-lock artifact
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          rm -rf .ci-staging/source-lock
-          mkdir -p .ci-staging/source-lock
-          curl -fL \
-            -H "Authorization: Bearer $GH_TOKEN" \
-            -H "Accept: application/vnd.github+json" \
-            -H "X-GitHub-Api-Version: 2022-11-28" \
-            -o /tmp/source-lock.zip \
-            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/artifacts/11327953436/zip"
-          echo "880c160a601ab09b60a75d1ad42d931bc709a14d91a7319e6631b0b9200d794a  /tmp/source-lock.zip" | sha256sum -c -
-          unzip -q /tmp/source-lock.zip -d .ci-staging/source-lock/fox_14.1
-          (cd .ci-staging/source-lock/fox_14.1 && sha256sum -c SHA256SUMS)
-
-      - name: Commit staging snapshot
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config user.name "OFOX DASH Source Lock"
-          git config user.email "noreply@localhost"
-          git add .ci-staging/source-lock/fox_14.1
-          git commit -m "ci: stage audited fox_14.1 source lock [skip ci]"
-          git push origin HEAD:main
+# Retired temporary workflow.
+# The corrected fox_14.1 canonical source-lock snapshot is already staged in
+# .ci-staging/source-lock/fox_14.1 and canonized in the private controller.
+# Intentionally contains no GitHub Actions trigger or jobs.
