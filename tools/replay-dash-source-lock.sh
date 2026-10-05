@@ -179,16 +179,26 @@ PY
       exit 9
     fi
 
-    now="$TOP/.ofox-dash-current.patch"
-    git -C "$TOP/$path" diff --binary HEAD -- . > "$now"
+    project="$TOP/$path"
+    expected_index="$TOP/.ofox-dash-expected-index.$"
+    actual_index="$TOP/.ofox-dash-actual-index.$"
+    rm -f "$expected_index" "$actual_index"
 
-    if ! cmp -s "$now" "$LOCK_DIR/$patch_rel"; then
-      echo "Working-tree patch mismatch: $path" >&2
-      rm -f "$now"
+    GIT_INDEX_FILE="$expected_index" git -C "$project" read-tree HEAD
+    GIT_INDEX_FILE="$expected_index" git -C "$project" apply --cached --binary "$LOCK_DIR/$patch_rel"
+    expected_tree="$(GIT_INDEX_FILE="$expected_index" git -C "$project" write-tree)"
+
+    GIT_INDEX_FILE="$actual_index" git -C "$project" read-tree HEAD
+    GIT_INDEX_FILE="$actual_index" git -C "$project" add -A -- .
+    actual_tree="$(GIT_INDEX_FILE="$actual_index" git -C "$project" write-tree)"
+
+    rm -f "$expected_index" "$actual_index"
+
+    if [[ "$actual_tree" != "$expected_tree" ]]; then
+      echo "Working-tree content mismatch: $path" >&2
+      echo "expected_tree=$expected_tree actual_tree=$actual_tree" >&2
       exit 9
     fi
-
-    rm -f "$now"
   done < "$LOCK_DIR/patches.index"
 }
 
