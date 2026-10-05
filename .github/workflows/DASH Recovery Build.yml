@@ -40,7 +40,7 @@ jobs:
           repository: rakarizaldy-id/android_device_xiaomi_dash-recovery-source-14.1
           ref: 73728ee446043865714684ff67005b5a7df12ff6
           path: .dash-controller
-          ssh-key: __DASH_TREE_SSH_KEY_SECRET__
+          ssh-key: ${{ secrets.DASH_TREE_SSH_KEY }}
           persist-credentials: false
           fetch-depth: 1
 
@@ -49,7 +49,7 @@ jobs:
         run: |
           set -euo pipefail
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -yq \
-            linux-modules-extra-$(uname -r) git python3 tar aria2
+            linux-modules-extra-$(uname -r) git python3 tar aria2 zstd
           curl -fL -o /tmp/android_build_env.sh \
             https://gitlab.com/OrangeFox/misc/scripts/-/raw/master/setup/android_build_env.sh
           sudo bash /tmp/android_build_env.sh
