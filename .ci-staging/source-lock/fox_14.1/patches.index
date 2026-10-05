@@ -1,1 +1,3 @@
-build/make\tpatches/build/make.patch\nsystem/update_engine\tpatches/system/update_engine.patch\nsystem/vold\tpatches/system/vold.patch\n
+build/make	patches/build/make.patch
+system/update_engine	patches/system/update_engine.patch
+system/vold	patches/system/vold.patch
