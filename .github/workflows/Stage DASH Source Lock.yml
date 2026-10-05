@@ -29,8 +29,8 @@ jobs:
             -H "Accept: application/vnd.github+json" \
             -H "X-GitHub-Api-Version: 2022-11-28" \
             -o /tmp/source-lock.zip \
-            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/artifacts/11327099205/zip"
-          echo "9fc1fe57a9c821622f9e1f1ab608feece3971108ab3162d34470e171d90177f9  /tmp/source-lock.zip" | sha256sum -c -
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/artifacts/11327953436/zip"
+          echo "880c160a601ab09b60a75d1ad42d931bc709a14d91a7319e6631b0b9200d794a  /tmp/source-lock.zip" | sha256sum -c -
           unzip -q /tmp/source-lock.zip -d .ci-staging/source-lock/fox_14.1
           (cd .ci-staging/source-lock/fox_14.1 && sha256sum -c SHA256SUMS)
 
