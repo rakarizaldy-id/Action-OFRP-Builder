@@ -1,4 +1,0 @@
-# Retired temporary workflow.
-# The corrected fox_14.1 canonical source-lock snapshot is already staged in
-# .ci-staging/source-lock/fox_14.1 and canonized in the private controller.
-# Intentionally contains no GitHub Actions trigger or jobs.
