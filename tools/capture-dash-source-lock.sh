@@ -33,13 +33,13 @@ list_actual_dirty_projects() {
   : > "$out"
   (
     cd "$TOP"
-    repo forall -c 'if test -n "$(git status --porcelain=v1)"; then printf "%s\\n" "$REPO_PATH"; fi'
+    repo forall -c 'if test -n "$(git status --porcelain=v1)"; then printf "%s\n" "$REPO_PATH"; fi'
   ) >> "$out"
 
   for special in bootable/recovery vendor/recovery; do
     if [[ -d "$TOP/$special/.git" || -f "$TOP/$special/.git" ]]; then
       if [[ -n "$(git -C "$TOP/$special" status --porcelain=v1)" ]]; then
-        printf '%s\\n' "$special" >> "$out"
+        printf '%s\n' "$special" >> "$out"
       fi
     fi
   done
@@ -58,6 +58,28 @@ verify_lock_files() {
   }
 
   (cd "$dir" && sha256sum -c SHA256SUMS)
+
+  python3 - "$dir/metadata.txt" "$dir/patches.index" <<'PY'
+import sys
+from pathlib import Path
+
+metadata = Path(sys.argv[1]).read_text(encoding="utf-8")
+patches = Path(sys.argv[2]).read_text(encoding="utf-8")
+
+for label, text in (("metadata.txt", metadata), ("patches.index", patches)):
+    if "\\t" in text or "\\n" in text:
+        raise SystemExit(f"{label} contains literal escaped TSV/newline sequences")
+
+meta_lines = metadata.splitlines()
+if len(meta_lines) != 5:
+    raise SystemExit(f"metadata.txt line count is {len(meta_lines)}, expected 5")
+if any("\t" not in line for line in meta_lines):
+    raise SystemExit("metadata.txt is not tab-delimited")
+
+for line in patches.splitlines():
+    if line and line.count("\t") != 1:
+        raise SystemExit(f"invalid patches.index row: {line!r}")
+PY
 }
 
 capture_lock() {
@@ -93,9 +115,9 @@ PY
   rm -f "$raw"
 
   {
-    printf 'OFFICIAL_SYNC_URL\\t%s\\n' "$OFFICIAL_SYNC_URL"
-    printf 'OFFICIAL_SYNC_COMMIT\\t%s\\n' "$(git -C "$SYNC_ROOT" rev-parse HEAD)"
-    printf 'OFFICIAL_BRANCH\\t%s\\n' "$OFFICIAL_BRANCH"
+    printf 'OFFICIAL_SYNC_URL\t%s\n' "$OFFICIAL_SYNC_URL"
+    printf 'OFFICIAL_SYNC_COMMIT\t%s\n' "$(git -C "$SYNC_ROOT" rev-parse HEAD)"
+    printf 'OFFICIAL_BRANCH\t%s\n' "$OFFICIAL_BRANCH"
 
     for special in bootable/recovery vendor/recovery; do
       [[ -d "$TOP/$special" ]] || {
@@ -105,7 +127,7 @@ PY
 
       remote="$(git -C "$TOP/$special" remote get-url origin)"
       revision="$(git -C "$TOP/$special" rev-parse HEAD)"
-      printf 'SPECIAL\\t%s\\t%s\\t%s\\n' "$special" "$remote" "$revision"
+      printf 'SPECIAL\t%s\t%s\t%s\n' "$special" "$remote" "$revision"
     done
   } > "$dir/metadata.txt"
 
@@ -132,7 +154,7 @@ PY
       return 1
     }
 
-    printf '%s\\t%s\\n' "$path" "$patch_rel" >> "$dir/patches.index"
+    printf '%s\t%s\n' "$path" "$patch_rel" >> "$dir/patches.index"
   done < "$dirty"
 
   rm -f "$dirty"
@@ -147,7 +169,7 @@ PY
   verify_lock_files "$dir"
 
   lock_id="$(sha256sum "$dir/SHA256SUMS" | awk '{print $1}')"
-  printf '%s\\n' "$lock_id" > "$PROVISIONAL_STAMP"
+  printf '%s\n' "$lock_id" > "$PROVISIONAL_STAMP"
 
   echo "[dash14] provisional source lock captured: $dir"
   echo "[dash14] lock_id=$lock_id"
