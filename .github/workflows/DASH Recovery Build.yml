@@ -34,11 +34,11 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Checkout canonical private DASH tree
+      - name: Checkout private DASH controller
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           repository: rakarizaldy-id/android_device_xiaomi_dash-recovery-source-14.1
-          ref: 92a11301b8d3604be251c6a50b55b0db09e11ace
+          ref: c5da1ccb5ea11c8fe7e45ebc9a760fd8344502ee
           path: .dash-controller
           ssh-key: ${{ secrets.DASH_TREE_SSH_KEY }}
           persist-credentials: false
@@ -73,6 +73,16 @@ jobs:
         run: |
           set -euo pipefail
           bash ./tools/prepare-dash-build-source.sh
+
+      - name: Checkout DASH device tree into Android source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: rakarizaldy-id/android_device_xiaomi_dash-recovery-source-14.1
+          ref: c5da1ccb5ea11c8fe7e45ebc9a760fd8344502ee
+          path: fox_14.1/device/xiaomi/dash
+          ssh-key: ${{ secrets.DASH_TREE_SSH_KEY }}
+          persist-credentials: false
+          fetch-depth: 1
 
       - name: Create 30 GB swap
         uses: pierotofy/set-swap-space@fc79b3f67fa8a838184ce84a674ca12238d2c761
