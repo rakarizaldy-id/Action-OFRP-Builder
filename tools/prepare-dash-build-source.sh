@@ -73,13 +73,72 @@ for path, rev in rows:
     print(f"{path}\t{rev}")
 PY
 
-while IFS=$'\t' read -r path rev; do
-  [[ -d "$TOP/$path/.git" || -f "$TOP/$path/.git" ]] || {
-    echo "Missing locked project checkout: $path" >&2; exit 7;
+pin_locked_project() {
+  local path="$1"
+  local rev="$2"
+  local remote="$3"
+  local project="$TOP/$path"
+
+  [[ -d "$project/.git" || -f "$project/.git" ]] || {
+    echo "Missing locked project checkout: $path" >&2
+    exit 7
   }
+
+  if ! git -C "$project" cat-file -e "$rev^{commit}" 2>/dev/null; then
+    echo "[dash14] fetching locked revision for $path: $rev"
+    git -C "$project" fetch --no-tags "$remote" "$rev"
+  fi
+  git -C "$project" cat-file -e "$rev^{commit}" 2>/dev/null || {
+    echo "Locked revision is unavailable: $path $rev" >&2
+    exit 7
+  }
+
+  git -C "$project" checkout --detach -f "$rev" >/dev/null
+  git -C "$project" reset --hard "$rev" >/dev/null
+  git -C "$project" clean -fd >/dev/null
+}
+
+echo "[dash14] replaying 659 canonical repo revisions"
+while IFS=$'\t' read -r path rev; do
+  pin_locked_project "$path" "$rev" origin
+done < "$projects"
+
+echo "[dash14] replaying canonical OrangeFox special revisions"
+while IFS=$'\t' read -r tag path remote rev; do
+  [[ "$tag" == SPECIAL ]] || continue
+  [[ "$rev" =~ ^[0-9a-f]{40}$ ]] || {
+    echo "Invalid special revision: $path" >&2
+    exit 7
+  }
+  [[ "$remote" == https://gitlab.com/OrangeFox/* ]] || {
+    echo "Unexpected special remote for $path: $remote" >&2
+    exit 7
+  }
+  pin_locked_project "$path" "$rev" "$remote"
+done < "$LOCK_DIR/metadata.txt"
+
+echo "[dash14] applying canonical locked working-tree patches"
+while IFS=$'\t' read -r path patch_rel; do
+  [[ -n "$path" && -n "$patch_rel" ]] || continue
+  project="$TOP/$path"
+  patch_file="$LOCK_DIR/$patch_rel"
+  [[ -d "$project/.git" || -f "$project/.git" ]] || {
+    echo "Missing canonical dirty project: $path" >&2
+    exit 7
+  }
+  [[ -f "$patch_file" ]] || {
+    echo "Missing canonical patch: $patch_rel" >&2
+    exit 7
+  }
+  git -C "$project" apply --binary --check "$patch_file"
+  git -C "$project" apply --binary "$patch_file"
+done < "$LOCK_DIR/patches.index"
+
+echo "[dash14] verifying canonical repo revisions after replay"
+while IFS=$'\t' read -r path rev; do
   got="$(git -C "$TOP/$path" rev-parse HEAD)"
   [[ "$got" == "$rev" ]] || {
-    echo "Locked HEAD mismatch: $path" >&2
+    echo "Locked HEAD mismatch after replay: $path" >&2
     echo "expected=$rev got=$got" >&2
     exit 7
   }
@@ -87,15 +146,13 @@ done < "$projects"
 
 while IFS=$'\t' read -r tag path remote rev; do
   [[ "$tag" == SPECIAL ]] || continue
-  [[ "$rev" =~ ^[0-9a-f]{40}$ ]] || { echo "Invalid special revision: $path" >&2; exit 7; }
   got="$(git -C "$TOP/$path" rev-parse HEAD)"
   [[ "$got" == "$rev" ]] || {
-    echo "Special HEAD mismatch: $path" >&2
+    echo "Special HEAD mismatch after replay: $path" >&2
     echo "expected=$rev got=$got" >&2
     exit 7
   }
 done < "$LOCK_DIR/metadata.txt"
-
 actual_dirty="$TOP/.ofox-dash-dirty.actual"
 expected_dirty="$TOP/.ofox-dash-dirty.expected"
 : > "$actual_dirty"
