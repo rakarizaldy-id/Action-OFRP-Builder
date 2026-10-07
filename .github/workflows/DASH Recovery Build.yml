@@ -72,6 +72,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          bash -n ./tools/prepare-dash-build-source.sh
+          bash -n "$CONTROLLER_ROOT/recovery/root/system/bin/runatboot.sh"
           bash ./tools/prepare-dash-build-source.sh
 
       - name: Checkout DASH device tree into Android source
