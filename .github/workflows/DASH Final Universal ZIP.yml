@@ -1,0 +1,146 @@
+name: DASH Final Universal ZIP
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/DASH Final Universal ZIP.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  package:
+    name: package carrier-preserving universal ZIP
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    env:
+      CONTROLLER_REF: ad36cfb08957f52683898e8a3969f405b4227fd9
+      RECOVERY_ARTIFACT_ID: "11519328294"
+      RECOVERY_ARTIFACT_ARCHIVE_SHA256: c081634b52172bf3b1479e3205d4d89c2ee823b07015a01403a510ba37552477
+      RECOVERY_FRAGMENT_SHA256: 234716e03db104d77b402cb676fedd1db15d77d6ce4f2cb5e7246b94618ffab8
+      RECOVERY_RAW_SHA256: 4105365174e2cbdcc45e4098eefe2aa6b5372b4a31b29b6622b887cb42e29248
+
+    steps:
+      - name: Checkout public builder
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Checkout exact private DASH controller
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: rakarizaldy-id/android_device_xiaomi_dash-recovery-source-14.1
+          ref: ${{ env.CONTROLLER_REF }}
+          path: .dash-controller
+          ssh-key: ${{ secrets.DASH_TREE_SSH_KEY }}
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Download exact final recovery artifact
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p .input
+          curl -fL             -H "Authorization: Bearer $GH_TOKEN"             -H "Accept: application/vnd.github+json"             -H "X-GitHub-Api-Version: 2022-11-28"             "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/artifacts/${RECOVERY_ARTIFACT_ID}/zip"             -o .input/recovery-artifact.zip
+
+          echo "${RECOVERY_ARTIFACT_ARCHIVE_SHA256}  .input/recovery-artifact.zip" | sha256sum -c -
+          unzip -q .input/recovery-artifact.zip -d .input/recovery
+          echo "${RECOVERY_FRAGMENT_SHA256}  .input/recovery/vendor_ramdisk_recovery.cpio" | sha256sum -c -
+
+          gzip -dc .input/recovery/vendor_ramdisk_recovery.cpio > .input/ofox-recovery.cpio
+          echo "${RECOVERY_RAW_SHA256}  .input/ofox-recovery.cpio" | sha256sum -c -
+
+      - name: Stage carrier-preserving installer
+        shell: bash
+        run: |
+          set -euo pipefail
+          TEMPLATE=".dash-controller/release/installer-v4-a16-universal"
+          STAGE=".stage"
+          rm -rf "$STAGE"
+          mkdir -p "$STAGE"
+          cp -a "$TEMPLATE/." "$STAGE/"
+
+          rm -f             "$STAGE/tools/dash_fdtpatch"             "$STAGE/tools/dash_fstabnormalize"
+
+          mkdir -p "$STAGE/payload"
+          find "$STAGE/payload" -mindepth 1 -delete
+          cp .input/ofox-recovery.cpio "$STAGE/payload/ofox-recovery.cpio"
+          printf '%s  %s\n' "$RECOVERY_RAW_SHA256" "ofox-recovery.cpio"             > "$STAGE/payload/ofox-recovery.cpio.sha256"
+
+          chmod 0755             "$STAGE/META-INF/com/google/android/update-binary"             "$STAGE/tools/busybox"             "$STAGE/tools/magiskboot"             "$STAGE/tools/dash_avbrefresh"             "$STAGE/tools/dash_zstdcodec"
+
+          sh -n "$STAGE/META-INF/com/google/android/update-binary"
+
+          ! grep -Eq 'dash_fdtpatch|dash_fstabnormalize|platform\.orig|platform\.normalized|coherent-zstd'             "$STAGE/META-INF/com/google/android/update-binary"
+          grep -F 'Carrier policy: preserve every non-recovery component'             "$STAGE/META-INF/com/google/android/update-binary"
+          grep -F 'Carrier audit: all non-recovery files byte-identical'             "$STAGE/META-INF/com/google/android/update-binary"
+          grep -F 'recovery-only ZSTD'             "$STAGE/META-INF/com/google/android/update-binary"
+
+      - name: Build and statically audit final ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT="$PWD/out-final"
+          STAGE="$PWD/.stage"
+          ZIP="$OUT/OrangeFox-R12.0-Unofficial-dash-AOSP-Lineage-Final.zip"
+          mkdir -p "$OUT"
+
+          (
+            cd "$STAGE"
+            zip -q -9 -r "$ZIP" META-INF payload tools
+          )
+
+          unzip -t "$ZIP"
+
+          ZIP_RAW_SHA="$(unzip -p "$ZIP" payload/ofox-recovery.cpio | sha256sum | awk '{print $1}')"
+          [ "$ZIP_RAW_SHA" = "$RECOVERY_RAW_SHA256" ]
+
+          ZIP_SUM_SHA="$(unzip -p "$ZIP" payload/ofox-recovery.cpio.sha256 | awk '{print $1}')"
+          [ "$ZIP_SUM_SHA" = "$RECOVERY_RAW_SHA256" ]
+
+          FILES="$(unzip -Z1 "$ZIP" | grep -v '/$' | sort)"
+          EXPECTED="$(printf '%s\n'             META-INF/com/google/android/update-binary             META-INF/com/google/android/updater-script             payload/ofox-recovery.cpio             payload/ofox-recovery.cpio.sha256             tools/busybox             tools/dash_avbrefresh             tools/dash_zstdcodec             tools/magiskboot | sort)"
+          [ "$FILES" = "$EXPECTED" ]
+
+          ! unzip -Z1 "$ZIP" | grep -Eq 'dash_fdtpatch|dash_fstabnormalize'
+          ! unzip -p "$ZIP" META-INF/com/google/android/update-binary |             grep -Eq 'dash_fdtpatch|dash_fstabnormalize|platform\.orig|platform\.normalized|coherent-zstd'
+
+          ZIP_SHA="$(sha256sum "$ZIP" | awk '{print $1}')"
+          {
+            echo "OFOX DASH final universal ZIP static audit"
+            echo "controller_ref=$CONTROLLER_REF"
+            echo "recovery_artifact_id=$RECOVERY_ARTIFACT_ID"
+            echo "recovery_artifact_archive_sha256=$RECOVERY_ARTIFACT_ARCHIVE_SHA256"
+            echo "recovery_fragment_sha256=$RECOVERY_FRAGMENT_SHA256"
+            echo "recovery_raw_sha256=$RECOVERY_RAW_SHA256"
+            echo "zip_sha256=$ZIP_SHA"
+            echo "zip_size=$(stat -c %s "$ZIP")"
+            echo "carrier_policy=preserve-all-non-recovery-content"
+            echo "target_slot=active-only"
+            echo "platform_mutation=none"
+            echo "dtb_mutation=none"
+            echo "fstab_carrier_normalization=none"
+            echo "payload_model=single-raw-cpio"
+            echo "file_count=$(printf '%s\n' "$FILES" | wc -l)"
+            echo "static_audit=PASS"
+            echo
+            echo "[tool sha256]"
+            sha256sum               "$STAGE/tools/busybox"               "$STAGE/tools/magiskboot"               "$STAGE/tools/dash_avbrefresh"               "$STAGE/tools/dash_zstdcodec"
+          } > "$OUT/VERIFY.txt"
+
+          cat "$OUT/VERIFY.txt"
+
+      - name: Upload final ZIP package
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: ofox-dash-final-universal-${{ github.run_id }}
+          path: out-final
+          if-no-files-found: error
+          retention-days: 7
