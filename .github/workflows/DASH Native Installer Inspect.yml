@@ -1,0 +1,64 @@
+name: DASH Native Installer Inspect
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/DASH Native Installer Inspect.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout public builder
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Clone exact OrangeFox vendor/recovery
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone -q https://gitlab.com/OrangeFox/vendor/recovery.git of-vendor
+          cd of-vendor
+          git checkout -q cea00cabf2e8ce50fc9f0b5cda99b5801855847a
+          echo "HEAD=$(git rev-parse HEAD)"
+
+      - name: Inspect native vendor_boot installer generation
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd of-vendor
+          echo "===== build vars ====="
+          grep -n -A24 -B6 'FOX_VENDOR_BOOT_RECOVERY' orangefox_build_vars.txt || true
+          grep -n -A16 -B6 'FOX_INSTALLER_VENDOR_BOOT_RAMDISK_INSTALL' orangefox_build_vars.txt || true
+
+          echo "===== all vendor ramdisk references ====="
+          grep -RIn --exclude-dir=.git             -E 'vendor_ramdisk_recovery\.cpio|FOX_INSTALLER_VENDOR_BOOT_RAMDISK_INSTALL|flash-ramdisk|sign_zip|FOX_PORTS_INSTALLER' . || true
+
+          echo "===== installer tree ====="
+          find installer -maxdepth 6 -type f -printf '%m %p\n' | sort
+          echo "===== Files relevant ====="
+          find Files -maxdepth 2 -type f \( -name 'flash-*' -o -name 'INSTALL.txt' \) -printf '%m %p\n' | sort
+
+          mkdir -p ../native-inspect
+          cp -a orangefox_build_vars.txt ../native-inspect/
+          cp -a installer ../native-inspect/
+          for f in Files/flash-ramdisk.sh Files/flash-ramdisk.bat Files/flash-whole-image.sh Files/flash-whole-image.bat Files/INSTALL.txt; do
+            [ -f "$f" ] && cp -a --parents "$f" ../native-inspect/
+          done
+          grep -RIn --exclude-dir=.git             -E 'vendor_ramdisk_recovery\.cpio|FOX_INSTALLER_VENDOR_BOOT_RAMDISK_INSTALL|flash-ramdisk|sign_zip|FOX_PORTS_INSTALLER' .             > ../native-inspect/references.txt || true
+
+      - name: Upload inspection
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: ofox-native-installer-inspect-${{ github.run_id }}
+          path: native-inspect
+          if-no-files-found: error
+          retention-days: 2
