@@ -35,9 +35,12 @@ jobs:
         run: |
           set -euo pipefail
           cd of-vendor
-          echo "===== build vars ====="
-          grep -n -A24 -B6 'FOX_VENDOR_BOOT_RECOVERY' orangefox_build_vars.txt || true
-          grep -n -A16 -B6 'FOX_INSTALLER_VENDOR_BOOT_RAMDISK_INSTALL' orangefox_build_vars.txt || true
+          echo "===== native pack section ====="
+          sed -n '540,850p' OrangeFox_A14.sh
+          echo "===== native vendor_boot installer section ====="
+          sed -n '620,725p' installer/META-INF/com/google/android/update-binary
+          echo "===== native output helper section ====="
+          sed -n '1125,1205p' OrangeFox_A14.sh
 
           echo "===== all vendor ramdisk references ====="
           grep -RIn --exclude-dir=.git             -E 'vendor_ramdisk_recovery\.cpio|FOX_INSTALLER_VENDOR_BOOT_RAMDISK_INSTALL|flash-ramdisk|sign_zip|FOX_PORTS_INSTALLER' . || true
@@ -48,7 +51,8 @@ jobs:
           find Files -maxdepth 2 -type f \( -name 'flash-*' -o -name 'INSTALL.txt' \) -printf '%m %p\n' | sort
 
           mkdir -p ../native-inspect
-          cp -a orangefox_build_vars.txt ../native-inspect/
+          cp -a OrangeFox_A14.sh ../native-inspect/
+          cp -a signature ../native-inspect/
           cp -a installer ../native-inspect/
           for f in Files/flash-ramdisk.sh Files/flash-ramdisk.bat Files/flash-whole-image.sh Files/flash-whole-image.bat Files/INSTALL.txt; do
             [ -f "$f" ] && cp -a --parents "$f" ../native-inspect/
