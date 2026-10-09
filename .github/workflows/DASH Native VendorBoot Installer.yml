@@ -45,7 +45,7 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           repository: rakarizaldy-id/android_device_xiaomi_dash-recovery-source-14.1
-          ref: 5ed407a75d5356ef85b2370795ac97008c1d43b8
+          ref: d3479082c7dbd9078db824a47336a7585890187e
           path: .dash-controller
           ssh-key: ${{ secrets.DASH_TREE_SSH_KEY }}
           persist-credentials: false
@@ -77,7 +77,7 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           repository: rakarizaldy-id/android_device_xiaomi_dash-recovery-source-14.1
-          ref: 5ed407a75d5356ef85b2370795ac97008c1d43b8
+          ref: d3479082c7dbd9078db824a47336a7585890187e
           path: fox_14.1/device/xiaomi/dash
           ssh-key: ${{ secrets.DASH_TREE_SSH_KEY }}
           persist-credentials: false
@@ -152,7 +152,7 @@ jobs:
 
           {
             echo "native_orangefox_zip=$(basename "$ZIP")"
-            echo "controller_ref=5ed407a75d5356ef85b2370795ac97008c1d43b8"
+            echo "controller_ref=d3479082c7dbd9078db824a47336a7585890187e"
             echo "zip_sha256=$ZIP_SHA"
             echo "zip_size=$(stat -c %s "$ZIP")"
             echo "vendor_ramdisk_recovery_sha256=$RAMDISK_SHA"
