@@ -19,7 +19,7 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           repository: rakarizaldy-id/android_device_xiaomi_dash-recovery-source-14.1
-          ref: 9440dbdc777f60d7e7daf2f7e04759bca7875791
+          ref: d3479082c7dbd9078db824a47336a7585890187e
           path: controller
           ssh-key: ${{ secrets.DASH_TREE_SSH_KEY }}
           persist-credentials: false
