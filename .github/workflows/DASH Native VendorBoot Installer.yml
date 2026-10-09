@@ -110,7 +110,6 @@ jobs:
           cd "$TOP"
           set +u
           source build/envsetup.sh
-          set -u
           lunch twrp_dash-ap2a-eng
 
           m fs_config_files_system fs_config
