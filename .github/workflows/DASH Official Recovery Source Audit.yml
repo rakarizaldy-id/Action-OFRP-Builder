@@ -60,12 +60,18 @@ jobs:
           set -euo pipefail
           mkdir -p source-audit
           source_file="official-recovery/twrpinstall/twinstall.cpp"
+          functions_file="official-recovery/twrp-functions.cpp"
+          declarations_file="official-recovery/twrp-functions.hpp"
           patch_file="controller/patches/bootable-recovery-dash-auto-rom-spl-14.1.patch"
           test -s "$source_file"
+          test -s "$functions_file"
+          test -s "$declarations_file"
           test -s "$patch_file"
           cp -- "$source_file" source-audit/twinstall.cpp
+          cp -- "$functions_file" source-audit/twrp-functions.cpp
+          cp -- "$declarations_file" source-audit/twrp-functions.hpp
           cp -- "$patch_file" source-audit/auto-rom-spl.patch
-          sha256sum source-audit/twinstall.cpp source-audit/auto-rom-spl.patch > source-audit/SHA256SUMS
+          sha256sum source-audit/twinstall.cpp source-audit/twrp-functions.cpp source-audit/twrp-functions.hpp source-audit/auto-rom-spl.patch > source-audit/SHA256SUMS
           {
             echo "Official remote: $OFFICIAL_REPO"
             echo "Official commit: $(git -C official-recovery rev-parse HEAD)"
@@ -76,6 +82,8 @@ jobs:
 
           grep -nE 'TWinstall_zip|AB_OTA|Run_Update_Binary|FOX_PRE_ROM_FLASH_SCRIPT|Prepare_VirtualAB_Sideload_Storage|update_engine|security_patch' \
             "$source_file" > source-audit/twinstall-anchors.txt || true
+          grep -nE 'RunFoxScript|System_Property_Get|Fox_Property_Set|FOX_PRE_ROM_FLASH_SCRIPT' \
+            "$functions_file" "$declarations_file" > source-audit/property-script-anchors.txt || true
 
           # Capture both actual hunk diagnostics. A patch mismatch is an AUDIT
           # RESULT, not a reason to mutate source or launch compilation.
@@ -100,6 +108,8 @@ jobs:
           cat source-audit/reverse-dry-run.txt
           echo "===== SOURCE ANCHORS ====="
           cat source-audit/twinstall-anchors.txt
+          echo "===== PROPERTY AND SCRIPT FUNCTION ANCHORS ====="
+          cat source-audit/property-script-anchors.txt
           test "$(git -C official-recovery rev-parse HEAD)" = "$OFFICIAL_SHA"
           test -z "$(git -C official-recovery status --porcelain)"
 
