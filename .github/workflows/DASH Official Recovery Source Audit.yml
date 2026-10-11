@@ -1,0 +1,113 @@
+name: DASH Official Recovery Source Audit
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ofox-dash-official-recovery-source-audit
+  cancel-in-progress: false
+
+jobs:
+  audit:
+    name: inspect pinned OrangeFox twinstall source only
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+
+    env:
+      OFFICIAL_REPO: https://gitlab.com/OrangeFox/bootable/Recovery.git
+      OFFICIAL_SHA: 7280e7204e2acdd8133c5485a15cfa05a4feb34d
+      CONTROLLER_SHA: fd2e4c4a4ced1cc7ecc55ed7fb820e8d124c43cd
+
+    steps:
+      - name: Checkout pinned private controller (read-only)
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: rakarizaldy-id/android_device_xiaomi_dash-recovery-source-14.1
+          ref: fd2e4c4a4ced1cc7ecc55ed7fb820e8d124c43cd
+          path: controller
+          ssh-key: ${{ secrets.DASH_TREE_SSH_KEY }}
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Validate source lock and obtain exact official Recovery commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C controller rev-parse HEAD)" = "$CONTROLLER_SHA"
+          lock_line="$(printf 'SPECIAL\tbootable/recovery\t%s\t%s' "$OFFICIAL_REPO" "$OFFICIAL_SHA")"
+          grep -Fx -- "$lock_line" controller/PROJECT_NOTES/SOURCE_LOCK/fox_14.1/metadata.txt
+
+          # Only the official OrangeFox Recovery Git repository is fetched.
+          # No ROM sync, no device image generation, no unverified mirror fallback.
+          git init -q official-recovery
+          git -C official-recovery remote add origin "$OFFICIAL_REPO"
+          if ! git -C official-recovery fetch --no-tags --depth=1 origin "$OFFICIAL_SHA"; then
+            echo "Direct commit fetch unavailable; trying official fox_14.1 history." >&2
+            git -C official-recovery fetch --no-tags origin refs/heads/fox_14.1
+          fi
+          git -C official-recovery cat-file -e "$OFFICIAL_SHA^{commit}"
+          git -C official-recovery checkout --quiet --detach "$OFFICIAL_SHA"
+          test "$(git -C official-recovery rev-parse HEAD)" = "$OFFICIAL_SHA"
+          test -s official-recovery/twrpinstall/twinstall.cpp
+          echo "Verified official OrangeFox Recovery HEAD: $OFFICIAL_SHA"
+
+      - name: Collect exact source and test patch applicability without modification
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p source-audit
+          source_file="official-recovery/twrpinstall/twinstall.cpp"
+          patch_file="controller/patches/bootable-recovery-dash-auto-rom-spl-14.1.patch"
+          test -s "$source_file"
+          test -s "$patch_file"
+          cp -- "$source_file" source-audit/twinstall.cpp
+          cp -- "$patch_file" source-audit/auto-rom-spl.patch
+          sha256sum source-audit/twinstall.cpp source-audit/auto-rom-spl.patch > source-audit/SHA256SUMS
+          {
+            echo "Official remote: $OFFICIAL_REPO"
+            echo "Official commit: $(git -C official-recovery rev-parse HEAD)"
+            echo "Official subject: $(git -C official-recovery log -1 --format=%s)"
+            echo "Controller commit: $(git -C controller rev-parse HEAD)"
+            echo "Audit mode: source read + patch --dry-run; no patch applied"
+          } > source-audit/PROVENANCE.txt
+
+          grep -nE 'TWinstall_zip|AB_OTA|Run_Update_Binary|FOX_PRE_ROM_FLASH_SCRIPT|Prepare_VirtualAB_Sideload_Storage|update_engine|security_patch' \
+            "$source_file" > source-audit/twinstall-anchors.txt || true
+
+          # Capture both actual hunk diagnostics. A patch mismatch is an AUDIT
+          # RESULT, not a reason to mutate source or launch compilation.
+          set +e
+          patch --dry-run --batch -d official-recovery -p1 < "$patch_file" > source-audit/forward-dry-run.txt 2>&1
+          forward_rc=$?
+          patch --dry-run --batch -R -d official-recovery -p1 < "$patch_file" > source-audit/reverse-dry-run.txt 2>&1
+          reverse_rc=$?
+          set -e
+
+          {
+            echo "Forward patch dry-run exit: $forward_rc"
+            echo "Reverse patch dry-run exit: $reverse_rc"
+            echo "No source edits; nonzero dry-run result is retained as evidence."
+          } > source-audit/RESULT.txt
+
+          echo "===== PATCH AUDIT RESULT ====="
+          cat source-audit/RESULT.txt
+          echo "===== FORWARD DRY-RUN ====="
+          cat source-audit/forward-dry-run.txt
+          echo "===== REVERSE DRY-RUN ====="
+          cat source-audit/reverse-dry-run.txt
+          echo "===== SOURCE ANCHORS ====="
+          cat source-audit/twinstall-anchors.txt
+          test "$(git -C official-recovery rev-parse HEAD)" = "$OFFICIAL_SHA"
+          test -z "$(git -C official-recovery status --porcelain)"
+
+      - name: Upload read-only source audit evidence
+        if: success()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: ofox-dash-official-twinstall-audit-${{ github.run_id }}
+          path: source-audit/
+          if-no-files-found: error
+          retention-days: 7
