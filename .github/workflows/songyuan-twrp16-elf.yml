@@ -126,7 +126,8 @@ jobs:
           cd "$TWRP_DIR"
           source build/envsetup.sh
           unset ALLOW_MISSING_DEPENDENCIES
-          lunch twrp_songyuan
+          # Exact registered original device product in AndroidProducts.mk.
+          lunch twrp_songyuan-bp2a-eng
           test "$TARGET_PRODUCT" = twrp_songyuan
           echo "CHECKPOINT: Songyuan native lunch success"
           m -j2 recovery servicemanager.recovery
