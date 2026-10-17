@@ -174,7 +174,7 @@ jobs:
           echo "Compiler log retained in runner; diagnostics delivered only to PRIVATE repository."
           df -hT "$TWRP_DIR"
           exit "$status"
-      - name: Export only compiled ARM64 ELF and matching source-build Binder pair
+      - name: Export compiled ARM64 ELF with complete same-build DT_NEEDED runtime closure
         shell: bash
         run: |
           set -euo pipefail
@@ -210,6 +210,10 @@ jobs:
           (cd "$out"; sha256sum 392-verified-source-revisions.tsv resolved-391-projects.xml native-source-lock.tsv > SOURCE-LOCK-SHA256SUMS)
           # Now fail closed if mandatory source-built RECO Binder pair is absent.
           python3 project/ports/yukong-songyuan/audit_compiled_runtime.py "$out" "$root"
+          # Fail closed on ANY direct/transitive ELF SONAME not available from
+          # this exact built recovery root; never substitute donor libraries.
+          python3 project/ports/yukong-songyuan/export_native_runtime_closure.py "$out" "$root"
+          test -s "$out/NATIVE-RUNTIME-CLOSURE.json"
           printf 'BINARY ONLY — NOT FLASHABLE; No IMG created. Must audit linker/ABI and repack only in ChatGPT.\n' > "$out/README.txt"
       - name: Securely transfer ONLY audited ELF bundle to DRAFT release in original PRIVATE Songyuan repository
         shell: bash
@@ -221,6 +225,7 @@ jobs:
           out="$RUNNER_TEMP/songyuan-compact-binary"
           test -s "$out/recovery"
           test -s "$out/COMPILED-RUNTIME-ABI-AUDIT.json"
+          test -s "$out/NATIVE-RUNTIME-CLOSURE.json"
           readelf -h "$out/recovery" | grep -q 'Machine:.*AArch64'
           cat > "$out/README-NOT-FLASHABLE.txt" <<'EOF'
           Original first-party Songyuan ID305 TWRP16 executable ONLY.
@@ -232,9 +237,10 @@ jobs:
           sha256sum "$RUNNER_TEMP/songyuan-twrp16-elf-only.tar.gz" > "$RUNNER_TEMP/songyuan-twrp16-elf-only.tar.gz.sha256"
           cat > "$RUNNER_TEMP/songyuan-private-release-notes.txt" <<'EOF'
           Original POCO F9 Ultra (songyuan), genuine ID305 private OEM.
-          ONLY source-built TWRP16 recovery executable and ABI audit.
+          ONLY source-built TWRP16 executable, exact DT_NEEDED ARM64 runtime closure, and ABI audit.
           NOT FLASHABLE. No recovery.img, no signing, no donor, no phone operations.
-          Runtime Binder pair/CE decryption NOT verified; offline audit/repack pending.
+          Runtime Binder pair/CE decryption NOT verified. These files are not stock-ramdisk-tested.
+          Offline Songyuan ID305 stock ramdisk assembly/check required.
           EOF
           tag="songyuan-twrp16-elf-only-${GITHUB_RUN_ID}"
           gh release create "$tag" \
@@ -265,6 +271,7 @@ jobs:
             "$RUNNER_TEMP/songyuan-full-staged-audit.log" \
             "$RUNNER_TEMP/songyuan-full-staged-audit.json" \
             "$RUNNER_TEMP/songyuan-compact-binary/COMPILED-RUNTIME-ABI-AUDIT.json" \
+            "$RUNNER_TEMP/songyuan-compact-binary/NATIVE-RUNTIME-CLOSURE.json" \
             "$RUNNER_TEMP/songyuan-compact-binary/NOT-READY-FOR-IMAGE-REPLACEMENT.txt" \
             "$LOGS/392-verified-source-revisions.tsv" "$LOGS/SOURCE-SHA256SUMS.txt"; do
             if [[ -f "$p" ]]; then cp -- "$p" "$trace/$(basename "$p")"; fi
