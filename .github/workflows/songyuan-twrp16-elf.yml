@@ -59,7 +59,7 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           repository: rakarizaldy-id/TWRP-songyuan-Builder
-          ref: b8fb8bd2ebebf146f5e7f5962c4b5728aef3d72f
+          ref: a565b396bd87c5f7e9abd846457c9ce4441759c0
           token: ${{ secrets.SONGYUAN_PRIVATE_RW_TOKEN }}
           path: project
           persist-credentials: false
@@ -68,7 +68,7 @@ jobs:
       - name: Confirm exact device source and CLI script guards
         run: |
           set -euo pipefail
-          test "$(git -C project rev-parse HEAD)" = "b8fb8bd2ebebf146f5e7f5962c4b5728aef3d72f"
+          test "$(git -C project rev-parse HEAD)" = "a565b396bd87c5f7e9abd846457c9ce4441759c0"
           python3 project/tools/songyuan/validate_clean.py project/device/xiaomi/songyuan
           bash -n project/tools/songyuan/compact_twrp16_ci.sh
           bash -n project/tools/songyuan/probe_clang_sparse.sh
