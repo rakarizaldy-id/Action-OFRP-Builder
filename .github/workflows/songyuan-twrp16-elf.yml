@@ -59,7 +59,7 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           repository: rakarizaldy-id/TWRP-songyuan-Builder
-          ref: 48f60c0b9d9a58a8ef5f902acd326de2f888cd49
+          ref: b8fb8bd2ebebf146f5e7f5962c4b5728aef3d72f
           token: ${{ secrets.SONGYUAN_PRIVATE_RW_TOKEN }}
           path: project
           persist-credentials: false
@@ -68,7 +68,7 @@ jobs:
       - name: Confirm exact device source and CLI script guards
         run: |
           set -euo pipefail
-          test "$(git -C project rev-parse HEAD)" = "48f60c0b9d9a58a8ef5f902acd326de2f888cd49"
+          test "$(git -C project rev-parse HEAD)" = "b8fb8bd2ebebf146f5e7f5962c4b5728aef3d72f"
           python3 project/tools/songyuan/validate_clean.py project/device/xiaomi/songyuan
           bash -n project/tools/songyuan/compact_twrp16_ci.sh
           bash -n project/tools/songyuan/probe_clang_sparse.sh
@@ -125,7 +125,11 @@ jobs:
           set -eo pipefail
           cd "$TWRP_DIR"
           source build/envsetup.sh
-          unset ALLOW_MISSING_DEPENDENCIES
+          # Official TWRP-Test twrp-16.0 reduced manifest build mode.
+          # This avoids global optional Java/test/BPF defaults blocking Soong.
+          # Missing input dependencies at Ninja level still fail the build;
+          # auditable compiled ARM64 TWRP ELF is mandatory, NOT an IMG.
+          export ALLOW_MISSING_DEPENDENCIES=true
           # Exact registered original device product in AndroidProducts.mk.
           lunch twrp_songyuan-bp2a-eng
           test "$TARGET_PRODUCT" = twrp_songyuan
