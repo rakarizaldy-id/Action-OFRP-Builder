@@ -59,7 +59,7 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           repository: rakarizaldy-id/TWRP-songyuan-Builder
-          ref: a565b396bd87c5f7e9abd846457c9ce4441759c0
+          ref: 6cf2431f6c30553371080a37033528f6ecf2b5a2
           token: ${{ secrets.SONGYUAN_PRIVATE_RW_TOKEN }}
           path: project
           persist-credentials: false
@@ -68,8 +68,15 @@ jobs:
       - name: Confirm exact device source and CLI script guards
         run: |
           set -euo pipefail
-          test "$(git -C project rev-parse HEAD)" = "a565b396bd87c5f7e9abd846457c9ce4441759c0"
+          test "$(git -C project rev-parse HEAD)" = "6cf2431f6c30553371080a37033528f6ecf2b5a2"
           python3 project/tools/songyuan/validate_clean.py project/device/xiaomi/songyuan
+          # Full first-party source contract runs BEFORE 392-project sync, but do
+          # not expose private service/OEM filenames in PUBLIC workflow logs.
+          if ! python3 project/tools/songyuan/audit_complete_static.py > "$RUNNER_TEMP/songyuan-full-static-audit.log" 2>&1; then
+            echo "::error::Private first-party native preflight failed; see private diagnostic release"
+            exit 45
+          fi
+          echo "PASS: full first-party source-only audit; runtime NOT proven"
           bash -n project/tools/songyuan/compact_twrp16_ci.sh
           bash -n project/tools/songyuan/probe_clang_sparse.sh
       - name: Install first-party TWRP16 Linux build tool prerequisites
@@ -100,6 +107,14 @@ jobs:
           python3 project/ports/yukong-songyuan/patch_crypto_id305.py "$TWRP_DIR"
           bash project/tools/songyuan/prepare.sh "$TWRP_DIR" "$OEM_DIR"
           python3 project/tools/songyuan/validate_clean.py "$TWRP_DIR/device/xiaomi/songyuan" --staged
+          # Full recovery/root staged OEM paths and native service closure audit.
+          # Audit output and private file names are NOT echoed on public runner.
+          if ! python3 project/tools/songyuan/audit_complete_static.py --staged "$TWRP_DIR/device/xiaomi/songyuan" > "$RUNNER_TEMP/songyuan-full-staged-audit.log" 2>&1; then
+            echo "::error::Private staged native graph audit failed; see private diagnostic release"
+            exit 46
+          fi
+          cp "$TWRP_DIR/device/xiaomi/.songyuan-native-full-audit.json" "$RUNNER_TEMP/songyuan-full-staged-audit.json"
+          echo "PASS: full staged Songyuan source/OEM root graph audit; ELF still uncompiled"
       - name: Guard remaining space and provide bounded swap
         shell: bash
         run: |
@@ -185,6 +200,15 @@ jobs:
             fi
           done
           (cd "$out"; find . -type f -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS)
+          # Retain *only* original public source revision hashes and first-party
+          # private source commit ID. No repository source tar or OEM is published.
+          test -s "$LOGS/392-verified-source-revisions.tsv"
+          test -s "$LOGS/resolved-391-projects.xml"
+          cp "$LOGS/392-verified-source-revisions.tsv" "$out/392-verified-source-revisions.tsv"
+          cp "$LOGS/resolved-391-projects.xml" "$out/resolved-391-projects.xml"
+          printf 'private-native-tree-commit\t%s\n' "$(git -C project rev-parse HEAD)" > "$out/native-source-lock.tsv"
+          (cd "$out"; sha256sum 392-verified-source-revisions.tsv resolved-391-projects.xml native-source-lock.tsv > SOURCE-LOCK-SHA256SUMS)
+          # Now fail closed if mandatory source-built RECO Binder pair is absent.
           python3 project/ports/yukong-songyuan/audit_compiled_runtime.py "$out" "$root"
           printf 'BINARY ONLY — NOT FLASHABLE; No IMG created. Must audit linker/ABI and repack only in ChatGPT.\n' > "$out/README.txt"
       - name: Securely transfer ONLY audited ELF bundle to DRAFT release in original PRIVATE Songyuan repository
@@ -236,7 +260,13 @@ jobs:
           mkdir -p "$trace"
           for p in "$RUNNER_TEMP/songyuan-compact-compile.log" "$LOGS/repo-sync.log" \
             "$LOGS/after-repo-sync-disk.txt" "$LOGS/after-clang-disk.txt" \
-            "$LOGS/incomplete-source-inventory.txt" "$LOGS/disk-heartbeat.tsv"; do
+            "$LOGS/incomplete-source-inventory.txt" "$LOGS/disk-heartbeat.tsv" \
+            "$RUNNER_TEMP/songyuan-full-static-audit.log" \
+            "$RUNNER_TEMP/songyuan-full-staged-audit.log" \
+            "$RUNNER_TEMP/songyuan-full-staged-audit.json" \
+            "$RUNNER_TEMP/songyuan-compact-binary/COMPILED-RUNTIME-ABI-AUDIT.json" \
+            "$RUNNER_TEMP/songyuan-compact-binary/NOT-READY-FOR-IMAGE-REPLACEMENT.txt" \
+            "$LOGS/392-verified-source-revisions.tsv" "$LOGS/SOURCE-SHA256SUMS.txt"; do
             if [[ -f "$p" ]]; then cp -- "$p" "$trace/$(basename "$p")"; fi
           done
           if [[ -z "$(find "$trace" -type f -print -quit)" ]]; then
