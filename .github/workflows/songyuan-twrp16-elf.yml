@@ -59,7 +59,7 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           repository: rakarizaldy-id/TWRP-songyuan-Builder
-          ref: 16c8ebe4fdb6084e995cbfa709de411fbed4f751
+          ref: 04f84342b995c5e016c1f572163916e4d530d1a3
           token: ${{ secrets.SONGYUAN_PRIVATE_RW_TOKEN }}
           path: project
           persist-credentials: false
@@ -68,7 +68,7 @@ jobs:
       - name: Confirm exact device source and CLI script guards
         run: |
           set -euo pipefail
-          test "$(git -C project rev-parse HEAD)" = "16c8ebe4fdb6084e995cbfa709de411fbed4f751"
+          test "$(git -C project rev-parse HEAD)" = "04f84342b995c5e016c1f572163916e4d530d1a3"
           python3 project/tools/songyuan/validate_clean.py project/device/xiaomi/songyuan
           # Full first-party source contract runs BEFORE 392-project sync, but do
           # not expose private service/OEM filenames in PUBLIC workflow logs.
