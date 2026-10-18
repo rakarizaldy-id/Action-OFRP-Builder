@@ -59,7 +59,7 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           repository: rakarizaldy-id/TWRP-songyuan-Builder
-          ref: 04f84342b995c5e016c1f572163916e4d530d1a3
+          ref: 9cdc3ded559e0176509a1d2704d71094fe3a2f37
           token: ${{ secrets.SONGYUAN_PRIVATE_RW_TOKEN }}
           path: project
           persist-credentials: false
@@ -68,7 +68,7 @@ jobs:
       - name: Confirm exact device source and CLI script guards
         run: |
           set -euo pipefail
-          test "$(git -C project rev-parse HEAD)" = "04f84342b995c5e016c1f572163916e4d530d1a3"
+          test "$(git -C project rev-parse HEAD)" = "9cdc3ded559e0176509a1d2704d71094fe3a2f37"
           python3 project/tools/songyuan/validate_clean.py project/device/xiaomi/songyuan
           # Full first-party source contract runs BEFORE 392-project sync, but do
           # not expose private service/OEM filenames in PUBLIC workflow logs.
@@ -214,6 +214,12 @@ jobs:
           # this exact built recovery root; never substitute donor libraries.
           python3 project/ports/yukong-songyuan/export_native_runtime_closure.py "$out" "$root"
           test -s "$out/NATIVE-RUNTIME-CLOSURE.json"
+          # Official TWRP16 recovery Android.bp has mandatory executable,
+          # init_rc and SELinux installation dependencies beyond ELF DT_NEEDED.
+          # Stop (private diagnostics only) if the recovery/root built by this
+          # SAME source run is incomplete; never call a false-success image.
+          python3 project/ports/yukong-songyuan/export_native_boot_contract.py "$out" "$root"
+          test -s "$out/NATIVE-BOOT-CONTRACT.json"
           printf 'BINARY ONLY — NOT FLASHABLE; No IMG created. Must audit linker/ABI and repack only in ChatGPT.\n' > "$out/README.txt"
       - name: Securely transfer ONLY audited ELF bundle to DRAFT release in original PRIVATE Songyuan repository
         shell: bash
@@ -226,6 +232,7 @@ jobs:
           test -s "$out/recovery"
           test -s "$out/COMPILED-RUNTIME-ABI-AUDIT.json"
           test -s "$out/NATIVE-RUNTIME-CLOSURE.json"
+          test -s "$out/NATIVE-BOOT-CONTRACT.json"
           readelf -h "$out/recovery" | grep -q 'Machine:.*AArch64'
           cat > "$out/README-NOT-FLASHABLE.txt" <<'EOF'
           Original first-party Songyuan ID305 TWRP16 executable ONLY.
@@ -237,7 +244,7 @@ jobs:
           sha256sum "$RUNNER_TEMP/songyuan-twrp16-elf-only.tar.gz" > "$RUNNER_TEMP/songyuan-twrp16-elf-only.tar.gz.sha256"
           cat > "$RUNNER_TEMP/songyuan-private-release-notes.txt" <<'EOF'
           Original POCO F9 Ultra (songyuan), genuine ID305 private OEM.
-          ONLY source-built TWRP16 executable, exact DT_NEEDED ARM64 runtime closure, and ABI audit.
+          ONLY source-built TWRP16 ELF plus complete verified recovery boot-root first-party file contract, native services, policy and ABI audit.
           NOT FLASHABLE. No recovery.img, no signing, no donor, no phone operations.
           Runtime Binder pair/CE decryption NOT verified. These files are not stock-ramdisk-tested.
           Offline Songyuan ID305 stock ramdisk assembly/check required.
@@ -272,6 +279,7 @@ jobs:
             "$RUNNER_TEMP/songyuan-full-staged-audit.json" \
             "$RUNNER_TEMP/songyuan-compact-binary/COMPILED-RUNTIME-ABI-AUDIT.json" \
             "$RUNNER_TEMP/songyuan-compact-binary/NATIVE-RUNTIME-CLOSURE.json" \
+            "$RUNNER_TEMP/songyuan-compact-binary/NATIVE-BOOT-CONTRACT.json" \
             "$RUNNER_TEMP/songyuan-compact-binary/NOT-READY-FOR-IMAGE-REPLACEMENT.txt" \
             "$LOGS/392-verified-source-revisions.tsv" "$LOGS/SOURCE-SHA256SUMS.txt"; do
             if [[ -f "$p" ]]; then cp -- "$p" "$trace/$(basename "$p")"; fi
