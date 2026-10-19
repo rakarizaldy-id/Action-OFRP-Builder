@@ -97,14 +97,14 @@ jobs:
           mkdir -p "$OEM_ARCHIVE_DIR"
           gh release download songyuan-id305-oem-20261016-v3 --repo "rakarizaldy-id/TWRP-songyuan-Builder" --pattern songyuan-id305-curated.tar.gz --dir "$OEM_ARCHIVE_DIR"
           echo 'db44de838e34151fcf76f19e356bb3d2abfcb0038104fc2dcd5590edcfeb9d40  songyuan-id305-curated.tar.gz' | (cd "$OEM_ARCHIVE_DIR"; sha256sum -c)
-          python3 project/ports/yukong-songyuan/check_cloud_payload.py "$OEM_ARCHIVE_DIR/songyuan-id305-curated.tar.gz" "$OEM_DIR"
+          python3 project/tools/songyuan/check_cloud_payload.py "$OEM_ARCHIVE_DIR/songyuan-id305-curated.tar.gz" "$OEM_DIR"
           python3 project/tools/songyuan/curate_oem.py --verify "$OEM_DIR"
           python3 project/tools/songyuan/verify_oem.py "$OEM_DIR"
       - name: Stage original Songyuan ID305 and guarded native security patch
         shell: bash
         run: |
           set -euo pipefail
-          python3 project/ports/yukong-songyuan/patch_crypto_id305.py "$TWRP_DIR"
+          python3 project/tools/songyuan/patch_crypto_id305.py "$TWRP_DIR"
           bash project/tools/songyuan/prepare.sh "$TWRP_DIR" "$OEM_DIR"
           python3 project/tools/songyuan/validate_clean.py "$TWRP_DIR/device/xiaomi/songyuan" --staged
           # Full recovery/root staged OEM paths and native service closure audit.
@@ -219,16 +219,16 @@ jobs:
           printf 'private-native-tree-commit\t%s\n' "$(git -C project rev-parse HEAD)" > "$out/native-source-lock.tsv"
           (cd "$out"; sha256sum 392-verified-source-revisions.tsv resolved-391-projects.xml native-source-lock.tsv > SOURCE-LOCK-SHA256SUMS)
           # Now fail closed if mandatory source-built RECO Binder pair is absent.
-          python3 project/ports/yukong-songyuan/audit_compiled_runtime.py "$out" "$root"
+          python3 project/tools/songyuan/audit_compiled_runtime.py "$out" "$root"
           # Fail closed on ANY direct/transitive ELF SONAME not available from
           # this exact built recovery root; never substitute donor libraries.
-          python3 project/ports/yukong-songyuan/export_native_runtime_closure.py "$out" "$root"
+          python3 project/tools/songyuan/export_native_runtime_closure.py "$out" "$root"
           test -s "$out/NATIVE-RUNTIME-CLOSURE.json"
           # Official TWRP16 recovery Android.bp has mandatory executable,
           # init_rc and SELinux installation dependencies beyond ELF DT_NEEDED.
           # Stop (private diagnostics only) if the recovery/root built by this
           # SAME source run is incomplete; never call a false-success image.
-          python3 project/ports/yukong-songyuan/export_native_boot_contract.py "$out" "$root"
+          python3 project/tools/songyuan/export_native_boot_contract.py "$out" "$root"
           test -s "$out/NATIVE-BOOT-CONTRACT.json"
           printf 'BINARY ONLY — NOT FLASHABLE; No IMG created. Must audit linker/ABI and repack only in ChatGPT.\n' > "$out/README.txt"
       - name: Securely transfer ONLY audited ELF bundle to DRAFT release in original PRIVATE Songyuan repository
